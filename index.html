@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Study Timer - 修正版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        :root { --primary: #2563eb; --success: #22c55e; }
+        body { font-family: sans-serif; margin: 0; background: #f8fafc; }
+        
+        /* 修正：鏡頭位置與點擊穿透 */
+        #reader {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 160px;
+            height: 160px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 50; /* 降低一點 z-index 避免擋住 UI */
+            background: #000;
+        }
+
+        .container { max-width: 800px; margin: 40px auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        
+        .status-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        
+        /* 管理者區塊 */
+        #adminPanel { 
+            display: none; 
+            background: #1e293b; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-top: 20px; 
+            position: relative;
+            z-index: 100; /* 確保在最上層可被點擊 */
+        }
+
+        .btn { cursor: pointer; padding: 10px 18px; border-radius: 6px; border: none; font-weight: bold; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-admin { background: #64748b; color: white; font-size: 12px; }
+
+        #qrcode-result { background: white; padding: 15px; display: inline-block; margin-top: 15px; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+    </style>
+</head>
+<body>
+
+    <div id="reader"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>📚 讀書打卡系統</h1>
+            <button class="btn btn-admin" onclick="toggleAdmin()">管理者登入</button>
+        </div>
+
+        <div class="status-card">
+            <p>目前狀態：<strong id="statusText">等待掃描...</strong></p>
+        </div>
+
+        <div id="adminPanel">
+            <h3>生成專屬打卡卡片</h3>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="userNameInput" placeholder="輸入姓名" style="padding: 10px; flex: 1; border-radius: 6px;">
+                <button class="btn btn-primary" onclick="generateQR()">生成</button>
+            </div>
+            <div id="qrcode-result">
+                <div id="qrcode-canvas"></div>
+                <button id="downloadBtn" class="btn" style="display:none; margin-top:10px; width:100%; background:#eee;">下載圖片</button>
+            </div>
+        </div>
+
+        <h3>今日紀錄</h3>
+        <table>
+            <thead><tr><th>科目</th><th>時間</th><th>時長</th></tr></thead>
+            <tbody id="logBody"></tbody>
+        </table>
+    </div>
+
+    <audio id="beep" src="https://www.soundjay.com/buttons/beep-07a.mp3"></audio>
+
+    <script>
+        // 1. 初始化 Supabase (修正命名衝突)
+        const _SUPABASE_URL = '你的URL';
+        const _SUPABASE_KEY = '你的KEY';
+        const _client = supabase.createClient(_SUPABASE_URL, _SUPABASE_KEY);
+
+        let isStudying = false;
+        let currentSession = null;
+
+        // 2. 初始化掃描器 (增加錯誤回報)
+        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 100 });
+        
+        function startScanner() {
+            html5QrcodeScanner.render(onScanSuccess, (err) => {
+                // 忽略掃描中的頻繁報錯，只在控制台顯示
+                console.warn("掃描中...");
+            });
+        }
+
+        async function onScanSuccess(decodedText) {
+            document.getElementById('beep').play();
+            html5QrcodeScanner.pause();
+
+            if (!isStudying) {
+                const subject = prompt(`你好 ${decodedText}，請輸入讀書科目：`);
+                if (subject) {
+                    isStudying = true;
+                    currentSession = { user: decodedText, sub: subject, start: new Date().toISOString() };
+                    document.getElementById('statusText').innerText = `正在讀：${subject}`;
+                }
+            } else {
+                const content = prompt("讀完了！簡單寫一下內容：");
+                const endTime = new Date().toISOString();
+                
+                // 寫入 Supabase
+                await _client.from('study_logs').insert([{
+                    user_name: currentSession.user,
+                    subject: currentSession.sub,
+                    start_time: currentSession.start,
+                    end_time: endTime,
+                    content: content
+                }]);
+
+                isStudying = false;
+                document.getElementById('statusText').innerText = "等待掃描...";
+                loadLogs();
+            }
+            setTimeout(() => html5QrcodeScanner.resume(), 3000);
+        }
+
+        // 3. Admin & QR 功能
+        function toggleAdmin() {
+            const p = document.getElementById('adminPanel');
+            p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function generateQR() {
+            const name = document.getElementById('userNameInput').value;
+            if(!name) return;
+            
+            const qrContainer = document.getElementById('qrcode-canvas');
+            qrContainer.innerHTML = ""; // 清除舊的
+            
+            // 生成 QR Code
+            new QRCode(qrContainer, {
+                text: name,
+                width: 150,
+                height: 150
+            });
+
+            // 延遲一下待圖片生成後，開啟下載按鈕
+            setTimeout(() => {
+                const img = qrContainer.querySelector('img');
+                const btn = document.getElementById('downloadBtn');
+                if(img) {
+                    btn.style.display = 'block';
+                    btn.onclick = () => {
+                        const link = document.createElement('a');
+                        link.download = `${name}_QRCode.png`;
+                        link.href = img.src;
+                        link.click();
+                    };
+                }
+            }, 500);
+        }
+
+        async function loadLogs() {
+            const { data } = await _client.from('study_logs').select('*').order('created_at', {ascending: false});
+            if(data) {
+                document.getElementById('logBody').innerHTML = data.map(l => `
+                    <tr>
+                        <td>${l.subject}</td>
+                        <td>${new Date(l.start_time).toLocaleTimeString()}</td>
+                        <td>紀錄成功</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 啟動
+        window.onload = () => {
+            startScanner();
+            loadLogs();
+        };
+    </script>
+</body>
+</html>
