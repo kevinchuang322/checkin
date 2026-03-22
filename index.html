@@ -98,18 +98,6 @@
             z-index: 5;
             white-space: nowrap;
         }
-        /* 箭頭的小三角 */
-        .camera-section::before {
-            content: "";
-            position: absolute;
-            right: -20px; top: 50%;
-            transform: translateY(-50%);
-            border-top: 10px solid transparent;
-            border-bottom: 10px solid transparent;
-            border-right: 10px solid var(--primary); /* 三角形朝左 */
-            z-index: 5;
-            animation: arrowPulse 1.5s infinite;
-        }
 
         @keyframes arrowPulse { 
             0% { opacity: 1; transform: translateY(-50%) translateX(0); } 
