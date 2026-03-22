@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Study Pro | 前置鏡頭版</title>
+    <title>QR Study Pro | 最終修正版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -12,7 +12,7 @@
         :root { --primary: #2563eb; --bg: #f8fafc; }
         html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); }
 
-        /* 鏡頭絕對鎖定 - 寬高固定防止壓縮 */
+        /* 鏡頭絕對鎖定 - 不受排版影響 */
         #reader {
             position: fixed; top: 15px; right: 15px;
             width: 160px; height: 160px;
@@ -23,31 +23,42 @@
         #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
         .container { height: 100vh; display: flex; flex-direction: column; padding: 20px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
-        .top-section { height: 120px; flex-shrink: 0; padding-right: 170px; display: flex; flex-direction: column; justify-content: center; }
+        
+        /* 上方資訊固定高度 */
+        .top-section { height: 110px; flex-shrink: 0; padding-right: 170px; display: flex; flex-direction: column; justify-content: center; }
         .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; background: white; padding: 5px 15px; border-radius: 12px; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
+        /* 紀錄區塊 */
         .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; }
-        .table-card { flex: 1; background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        table { width: 100%; border-collapse: collapse; }
-        thead { position: sticky; top: 0; background: #f1f5f9; z-index: 10; }
-        th { padding: 12px; text-align: left; font-size: 14px; color: #64748b; }
-        td { padding: 15px 12px; border-bottom: 1px solid #f8fafc; font-size: 16px; }
+        .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { padding: 12px; text-align: left; font-size: 13px; color: #64748b; background: #f1f5f9; }
+        td { padding: 14px 12px; border-bottom: 1px solid #f8fafc; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .ongoing { background: #fffbeb; color: #f59e0b; font-weight: bold; }
         .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1.2s infinite; }
         @keyframes blink { 50% { opacity: 0.3; } }
 
+        /* Admin 按鈕固定在左下角 */
+        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; z-index: 3000; opacity: 0.7; }
+        .admin-trigger:hover { opacity: 1; }
+
+        /* Admin 面板彈窗化 */
+        #adminPanel { 
+            display: none; position: fixed; bottom: 60px; left: 15px; right: 15px; 
+            background: #334155; color: white; padding: 20px; border-radius: 15px; 
+            z-index: 3000; box-shadow: 0 -5px 20px rgba(0,0,0,0.2); 
+        }
+
         #startOverlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .btn { padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
-        .btn-primary { background: var(--primary); color: white; }
-        #adminPanel { display: none; padding: 15px; background: #334155; color: white; border-radius: 15px; margin-top: 10px; }
+        .btn-primary { background: var(--primary); color: white; padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="startOverlay">
         <h2 style="margin-bottom:20px;">📚 讀書打卡系統</h2>
-        <button class="btn btn-primary" onclick="init()">啟動系統</button>
+        <button class="btn-primary" onclick="init()">啟動系統</button>
     </div>
 
     <div id="reader"></div>
@@ -59,27 +70,27 @@
         </div>
 
         <div class="log-section">
-            <h3 style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 最近 5 筆紀錄</h3>
+            <h3 style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 即時動態 (僅顯示 5 筆)</h3>
             <div class="table-card">
                 <table>
+                    <colgroup><col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>
                     <thead><tr><th>學生</th><th>科目</th><th>開始</th><th>結束</th></tr></thead>
-                    <tbody id="logBody"><tr><td colspan="4" style="text-align:center; padding:30px; color:#94a3b8;">載入中...</td></tr></tbody>
+                    <tbody id="logBody"></tbody>
                 </table>
             </div>
         </div>
+    </div>
 
-        <div style="padding: 10px 0;">
-            <button onclick="toggleAdmin()" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:12px;">⚙️ 管理員工具</button>
-        </div>
+    <button class="admin-trigger" onclick="toggleAdmin()">⚙️ 管理員工具</button>
 
-        <div id="adminPanel">
-            <div style="display:flex; gap:10px;">
-                <input type="text" id="nameIn" placeholder="學生姓名" style="padding:8px; border-radius:5px; flex:1;">
-                <button onclick="genQR()" class="btn-primary" style="padding:5px 15px; border-radius:5px;">生成</button>
-            </div>
-            <div id="qr-out" style="margin-top:10px; background:white; padding:10px; display:inline-block; border-radius:10px;"></div>
-            <button onclick="loadHistory(50)" style="display:block; margin-top:10px; background:#475569; color:white; border:1px solid #94a3b8; padding:5px 10px; font-size:12px; border-radius:5px;">載入前 50 筆紀錄</button>
+    <div id="adminPanel">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <input type="text" id="nameIn" placeholder="學生姓名" style="padding:10px; border-radius:8px; border:none; flex:1;">
+            <button onclick="genQR()" class="btn-primary" style="padding:10px 20px;">生成</button>
         </div>
+        <div id="qr-out" style="background:white; padding:10px; display:inline-block; border-radius:10px; margin-bottom:10px;"></div>
+        <button onclick="loadHistory(50)" style="width:100%; background:#475569; color:white; border:1px solid #94a3b8; padding:8px; border-radius:8px;">查看歷史前 50 筆</button>
+        <button onclick="toggleAdmin()" style="width:100%; margin-top:10px; background:none; color:#cbd5e1; border:none; font-size:12px;">關閉面板</button>
     </div>
 
     <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
@@ -88,7 +99,6 @@
         const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
         const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
         let db;
-
         try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) {}
 
         let activeSessions = {};
@@ -107,8 +117,6 @@
         async function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 25, qrbox: 120, videoConstraints: { facingMode: "user" } };
-            
-            // 優先啟動前置鏡頭
             html5QrCode.start({ facingMode: "user" }, config, onScan)
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
@@ -128,15 +136,10 @@
                 const session = activeSessions[name];
                 const diff = Math.floor((now - new Date(session.start)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
-                
                 const { error } = await db.from('study_logs').insert([{
                     user_name: name, subject: session.sub, start_time: session.start, end_time: now.toISOString(), content: note || ""
                 }]);
-
-                if (!error) {
-                    delete activeSessions[name];
-                    loadHistory(5);
-                }
+                if (!error) { delete activeSessions[name]; loadHistory(5); }
             }
             setTimeout(() => html5QrCode.resume(), 2000);
         }
@@ -149,21 +152,23 @@
 
         function renderUI() {
             const tbody = document.getElementById('logBody');
-            let html = "";
+            let rows = [];
             let count = 0;
+
             for (let name in activeSessions) {
                 count++;
                 const s = activeSessions[name];
-                html += `<tr class="ongoing"><td>${name}</td><td>${s.sub}</td><td>${new Date(s.start).toLocaleTimeString('zh-TW',{hour12:false})}</td><td><span class="dot"></span>進行中</td></tr>`;
+                rows.push(`<tr class="ongoing"><td>${name}</td><td>${s.sub}</td><td>${new Date(s.start).toLocaleTimeString('zh-TW',{hour12:false})}</td><td><span class="dot"></span>進行中</td></tr>`);
             }
+
             if (window.currentHistory) {
-                html += window.currentHistory.map(l => `
-                    <tr><td>${l.user_name}</td><td>${l.subject}</td>
-                    <td style="color:#94a3b8; font-size:14px;">${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td>
-                    <td style="color:#94a3b8; font-size:14px;">${new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td></tr>
-                `).join('');
+                window.currentHistory.forEach(l => {
+                    rows.push(`<tr><td>${l.user_name}</td><td>${l.subject}</td><td style="color:#94a3b8; font-size:13px;">${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td><td style="color:#94a3b8; font-size:13px;">${new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td></tr>`);
+                });
             }
-            tbody.innerHTML = html;
+
+            // 【強制裁切為 5 筆】
+            tbody.innerHTML = rows.slice(0, 5).join('') || "<tr><td colspan='4' style='text-align:center; padding:20px;'>無紀錄</td></tr>";
             document.getElementById('activeCount').innerText = count;
         }
 
