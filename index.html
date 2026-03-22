@@ -3,32 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Study Pro | 最終修正版</title>
+    <title>QR Study Pro | 安全管理版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; }
+        :root { --primary: #2563eb; --bg: #f8fafc; --dark: #1e293b; }
         html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); }
 
-        /* 鏡頭絕對鎖定 - 不受排版影響 */
+        /* 鏡頭鎖定 */
         #reader {
             position: fixed; top: 15px; right: 15px;
-            width: 160px; height: 160px;
+            width: 150px; height: 150px;
             border-radius: 20px; overflow: hidden;
             border: 4px solid white; box-shadow: 0 8px 25px rgba(0,0,0,0.1);
             z-index: 2000; background: #000;
         }
-        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
+        #reader video { object-fit: cover !important; }
 
         .container { height: 100vh; display: flex; flex-direction: column; padding: 20px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
         
-        /* 上方資訊固定高度 */
-        .top-section { height: 110px; flex-shrink: 0; padding-right: 170px; display: flex; flex-direction: column; justify-content: center; }
+        /* 頂部時鐘 */
+        .top-section { height: 110px; flex-shrink: 0; padding-right: 160px; display: flex; flex-direction: column; justify-content: center; }
         .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; background: white; padding: 5px 15px; border-radius: 12px; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
-        /* 紀錄區塊 */
+        /* 紀錄表格 */
         .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; }
         .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -39,19 +39,18 @@
         .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1.2s infinite; }
         @keyframes blink { 50% { opacity: 0.3; } }
 
-        /* Admin 按鈕固定在左下角 */
-        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; z-index: 3000; opacity: 0.7; }
-        .admin-trigger:hover { opacity: 1; }
-
-        /* Admin 面板彈窗化 */
+        /* 管理員按鈕與面板 */
+        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; z-index: 3000; }
+        
         #adminPanel { 
-            display: none; position: fixed; bottom: 60px; left: 15px; right: 15px; 
-            background: #334155; color: white; padding: 20px; border-radius: 15px; 
-            z-index: 3000; box-shadow: 0 -5px 20px rgba(0,0,0,0.2); 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(30, 41, 59, 0.95); color: white; padding: 30px; 
+            z-index: 4000; overflow-y: auto;
         }
 
         #startOverlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .btn-primary { background: var(--primary); color: white; padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
+        .input-dark { padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #334155; color: white; width: 100%; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -70,10 +69,10 @@
         </div>
 
         <div class="log-section">
-            <h3 style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 即時動態 (僅顯示 5 筆)</h3>
+            <h3 id="tableTitle" style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 即時動態 (最新 5 筆)</h3>
             <div class="table-card">
                 <table>
-                    <colgroup><col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>
+                    <colgroup><col><col><col><col></colgroup>
                     <thead><tr><th>學生</th><th>科目</th><th>開始</th><th>結束</th></tr></thead>
                     <tbody id="logBody"></tbody>
                 </table>
@@ -81,16 +80,33 @@
         </div>
     </div>
 
-    <button class="admin-trigger" onclick="toggleAdmin()">⚙️ 管理員工具</button>
+    <button class="admin-trigger" onclick="checkAdmin()">⚙️ 管理員工具</button>
 
     <div id="adminPanel">
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-            <input type="text" id="nameIn" placeholder="學生姓名" style="padding:10px; border-radius:8px; border:none; flex:1;">
-            <button onclick="genQR()" class="btn-primary" style="padding:10px 20px;">生成</button>
+        <div style="max-width: 500px; margin: 0 auto;">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin:0;">管理員工具箱</h2>
+                <button onclick="closeAdmin()" style="background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+
+            <div style="background: #334155; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+                <label style="display:block; margin-bottom:8px; font-size:14px;">生成學生 QR Code</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="nameIn" class="input-dark" placeholder="輸入學生姓名">
+                    <button onclick="genQR()" class="btn-primary">生成</button>
+                </div>
+                <div id="qr-out" style="background:white; padding:15px; margin-top:15px; display:none; border-radius:10px; text-align:center;">
+                    <div id="qrcode-container" style="display:flex; justify-content:center;"></div>
+                    <p id="qr-name-label" style="color:#000; margin-top:5px; font-weight:bold;"></p>
+                </div>
+            </div>
+
+            <div style="background: #334155; padding: 20px; border-radius: 15px;">
+                <label style="display:block; margin-bottom:15px; font-size:14px;">資料查詢</label>
+                <button onclick="loadHistory(1000)" style="width:100%; padding:12px; background:#475569; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-bottom:10px;">🔓 查看全量完整資料 (不限5筆)</button>
+                <p style="font-size:12px; color:#94a3b8; text-align:center;">※ 點擊後主畫面表格將切換為全量模式</p>
+            </div>
         </div>
-        <div id="qr-out" style="background:white; padding:10px; display:inline-block; border-radius:10px; margin-bottom:10px;"></div>
-        <button onclick="loadHistory(50)" style="width:100%; background:#475569; color:white; border:1px solid #94a3b8; padding:8px; border-radius:8px;">查看歷史前 50 筆</button>
-        <button onclick="toggleAdmin()" style="width:100%; margin-top:10px; background:none; color:#cbd5e1; border:none; font-size:12px;">關閉面板</button>
     </div>
 
     <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
@@ -98,11 +114,14 @@
     <script>
         const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
         const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
+        const ADMIN_PASSWORD = '8888'; // 這裡設定密碼
+        
         let db;
         try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) {}
 
         let activeSessions = {};
         let html5QrCode;
+        let isFullMode = false; // 是否正在顯示全部資料
 
         function init() {
             document.getElementById('startOverlay').style.display = 'none';
@@ -139,7 +158,10 @@
                 const { error } = await db.from('study_logs').insert([{
                     user_name: name, subject: session.sub, start_time: session.start, end_time: now.toISOString(), content: note || ""
                 }]);
-                if (!error) { delete activeSessions[name]; loadHistory(5); }
+                if (!error) { 
+                    delete activeSessions[name]; 
+                    loadHistory(isFullMode ? 1000 : 5); 
+                }
             }
             setTimeout(() => html5QrCode.resume(), 2000);
         }
@@ -147,7 +169,10 @@
         async function loadHistory(limit = 5) {
             const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false }).limit(limit);
             window.currentHistory = data;
+            isFullMode = limit > 5;
+            document.getElementById('tableTitle').innerText = isFullMode ? "📊 完整歷史資料" : "📊 即時動態 (最新 5 筆)";
             renderUI();
+            if (isFullMode) closeAdmin();
         }
 
         function renderUI() {
@@ -167,22 +192,36 @@
                 });
             }
 
-            // 【強制裁切為 5 筆】
-            tbody.innerHTML = rows.slice(0, 5).join('') || "<tr><td colspan='4' style='text-align:center; padding:20px;'>無紀錄</td></tr>";
+            // 如果不是全量模式，裁切成 5 筆
+            tbody.innerHTML = (isFullMode ? rows : rows.slice(0, 5)).join('') || "<tr><td colspan='4' style='text-align:center;'>無紀錄</td></tr>";
             document.getElementById('activeCount').innerText = count;
         }
 
-        function toggleAdmin() {
-            const p = document.getElementById('adminPanel');
-            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        // --- 安全管理邏輯 ---
+        function checkAdmin() {
+            const pw = prompt("请输入管理員密碼：");
+            if (pw === ADMIN_PASSWORD) {
+                document.getElementById('adminPanel').style.display = 'block';
+            } else if (pw !== null) {
+                alert("密碼錯誤！");
+            }
+        }
+
+        function closeAdmin() {
+            document.getElementById('adminPanel').style.display = 'none';
         }
 
         function genQR() {
             const n = document.getElementById('nameIn').value;
             if(!n) return;
             const out = document.getElementById('qr-out');
-            out.innerHTML = "";
-            new QRCode(out, { text: n, width: 120, height: 120 });
+            const container = document.getElementById('qrcode-container');
+            const label = document.getElementById('qr-name-label');
+            
+            out.style.display = 'inline-block';
+            container.innerHTML = "";
+            label.innerText = n;
+            new QRCode(container, { text: n, width: 150, height: 150 });
         }
     </script>
 </body>
