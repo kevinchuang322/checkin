@@ -3,53 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Study Timer Pro | 極速打卡版</title>
+    <title>QR Study Pro | 大字精確版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; }
+        :root { --primary: #2563eb; --bg: #f1f5f9; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; color: #1e293b; }
         
-        /* 右上角縮小鏡頭 */
+        /* 1. 框框加大 */
         #reader {
             position: fixed;
-            top: 15px;
-            right: 15px;
-            width: 130px;
-            height: 130px;
-            border-radius: 15px;
+            top: 20px;
+            right: 20px;
+            width: 180px;
+            height: 180px;
+            border-radius: 20px;
             overflow: hidden;
-            border: 3px solid white;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            border: 5px solid white;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.2);
             z-index: 2000;
             background: #000;
         }
         #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
-        .container { max-width: 500px; margin: 0 auto; padding: 20px; padding-top: 30px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-right: 150px; }
+        .container { max-width: 600px; margin: 0 auto; padding: 25px; padding-top: 40px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-right: 200px; }
         
-        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .status-bar { display: flex; align-items: center; gap: 10px; font-weight: bold; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; }
-        .dot.active { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        /* 1. 字體加大 */
+        h2 { font-size: 28px; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 25px; }
+        
+        .status-bar { display: flex; align-items: center; gap: 15px; font-size: 22px; font-weight: 800; }
+        .dot { width: 15px; height: 15px; border-radius: 50%; background: #cbd5e1; }
+        .dot.active { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
 
-        #adminPanel { display: none; background: #1e293b; color: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin: 10px 0; box-sizing: border-box; }
+        #adminPanel { display: none; background: #1e293b; color: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; }
+        input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #ddd; margin: 15px 0; font-size: 18px; box-sizing: border-box; }
         
-        .btn { cursor: pointer; padding: 12px; border-radius: 8px; border: none; font-weight: bold; width: 100%; transition: 0.2s; }
+        .btn { cursor: pointer; padding: 15px; border-radius: 12px; border: none; font-weight: bold; width: 100%; font-size: 18px; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-ghost { background: #e2e8f0; color: #475569; width: auto; font-size: 12px; }
+        .btn-ghost { background: #e2e8f0; color: #475569; width: auto; font-size: 14px; padding: 8px 15px; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        td { padding: 12px 5px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-        .log-name { font-weight: bold; }
-        .log-time { color: #94a3b8; font-size: 12px; }
+        /* 紀錄列表字體加大 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { text-align: left; color: #64748b; font-size: 14px; padding-bottom: 10px; }
+        td { padding: 18px 5px; border-bottom: 1px solid #f1f5f9; font-size: 18px; }
+        .log-name { font-weight: 800; color: #1e293b; }
+        .log-time { color: #2563eb; font-family: monospace; font-weight: 600; font-size: 16px; }
+        .log-sub { font-size: 14px; color: #64748b; display: block; }
+
+        /* 啟動按鈕 (為了解決音訊問題) */
+        #startOverlay {
+            position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999;
+        }
     </style>
 </head>
 <body>
+
+    <div id="startOverlay">
+        <h2 style="margin-bottom: 10px;">📚 歡迎使用打卡系統</h2>
+        <p style="color: #64748b; margin-bottom: 30px;">點擊下方按鈕以啟用音效與相機</p>
+        <button class="btn btn-primary" style="width: 200px;" onclick="initSystem()">啟動系統</button>
+    </div>
 
     <div id="reader"></div>
 
@@ -68,23 +86,28 @@
             <h3 style="margin:0;">生成卡片</h3>
             <input type="text" id="userNameInput" placeholder="輸入姓名">
             <button class="btn btn-primary" onclick="generateQR()">生成 QR Code</button>
-            <div id="qr-output" style="display: none; background: white; padding: 15px; border-radius: 10px; margin-top: 10px; text-align: center;">
+            <div id="qr-output" style="display: none; background: white; padding: 20px; border-radius: 15px; margin-top: 15px; text-align: center;">
                 <div id="qrcode-canvas" style="display: flex; justify-content: center;"></div>
-                <button id="downloadBtn" style="background:#22c55e; color:white; margin-top:10px;" class="btn">下載卡片</button>
+                <button id="downloadBtn" style="background:#22c55e; color:white; margin-top:15px;" class="btn">下載卡片</button>
             </div>
         </div>
 
         <div class="card">
-            <h3 style="margin:0 0 10px 0; font-size: 16px;">📜 最近紀錄</h3>
+            <h3 style="margin:0 0 10px 0; font-size: 18px; color: #64748b;">📜 最近紀錄 (秒級同步)</h3>
             <table>
+                <thead>
+                    <tr><th>學生/科目</th><th>打卡時間 (秒)</th></tr>
+                </thead>
                 <tbody id="logBody">
-                    <tr><td style="text-align:center; color:#94a3b8;">載入中...</td></tr>
+                    <tr><td colspan="2" style="text-align:center; color:#94a3b8; padding:30px;">連線中...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <audio id="beep" src="https://www.soundjay.com/buttons/beep-07a.mp3"></audio>
+    <audio id="beep" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" type="audio/mpeg">
+    </audio>
 
     <script>
         // --- 1. Supabase 設定 ---
@@ -96,12 +119,22 @@
         let isStudying = false;
         let currentSession = null;
 
-        // --- 2. 啟動鏡頭 (優化後鏡頭) ---
+        // --- 啟動系統 (解決音訊限制) ---
+        function initSystem() {
+            document.getElementById('startOverlay').style.display = 'none';
+            // 嘗試播放一次靜音音訊來解鎖
+            const audio = document.getElementById('beep');
+            audio.play().then(() => { audio.pause(); audio.currentTime = 0; });
+            startCamera();
+            loadLogs();
+        }
+
+        // --- 2. 啟動鏡頭 ---
         async function startCamera() {
             html5QrCode = new Html5Qrcode("reader");
             const config = { 
                 fps: 25, 
-                qrbox: { width: 120, height: 120 },
+                qrbox: { width: 140, height: 140 }, // 掃描框也加大
                 videoConstraints: { facingMode: "environment" } 
             };
             
@@ -111,30 +144,37 @@
             });
         }
 
-        // --- 3. 核心打卡邏輯 (加速版) ---
+        // --- 3. 核心打卡邏輯 ---
         async function onScanSuccess(decodedText) {
-            document.getElementById('beep').play();
-            await html5QrCode.pause(true); // 立即暫停避免重複偵測
+            // 立即播放嗶聲
+            const audio = document.getElementById('beep');
+            audio.currentTime = 0;
+            audio.play();
+
+            await html5QrCode.pause(true); 
 
             const now = new Date();
-            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            // 1. 時間顯示到秒 (HH:mm:ss)
+            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
 
             if (!isStudying) {
-                // 開始打卡
-                const sub = prompt(`👋 你好 ${decodedText}！\n現在時間：${timeStr}\n請輸入讀書科目：`, "自主學習");
+                const sub = prompt(`👋 您好 ${decodedText}！\n現在時間：${timeStr}\n請輸入讀書科目：`, "自主學習");
                 if (sub) {
                     isStudying = true;
                     currentSession = { user: decodedText, sub: sub, start: now.toISOString() };
-                    updateUI(true, `讀書中：${decodedText} (${sub})`);
-                    alert(`✅ ${decodedText} 於 ${timeStr} 開始讀書！`);
+                    updateUI(true, `進行中：${decodedText} (${sub})`);
+                    alert(`✅ ${decodedText} 於 ${timeStr} 開始！`);
                 }
             } else {
-                // 結束打卡
                 const startTime = new Date(currentSession.start);
-                const diffMin = Math.floor((now - startTime) / 60000);
-                const note = prompt(`✅ 結束讀書！\n累積時間：${diffMin} 分鐘\n請輸入心得：`, "");
+                const diffMs = now - startTime;
+                const diffSec = Math.floor(diffMs / 1000);
+                const min = Math.floor(diffSec / 60);
+                const sec = diffSec % 60;
 
-                // 立即寫入 Supabase
+                const note = prompt(`✅ 結束讀書！\n總時長：${min} 分 ${sec} 秒\n請輸入心得：`, "");
+
+                // 2. 寫入 Supabase
                 const { error } = await supabaseClient.from('study_logs').insert([{
                     user_name: currentSession.user,
                     subject: currentSession.sub,
@@ -144,21 +184,22 @@
                 }]);
 
                 if (!error) {
-                    alert(`🎉 ${currentSession.user} 打卡成功！\n結束時間：${timeStr}\n共讀了 ${diffMin} 分鐘。`);
+                    alert(`🎉 打卡成功！\n結束時間：${timeStr}\n共計：${min}分${sec}秒。`);
                     isStudying = false;
                     currentSession = null;
                     updateUI(false, "等待掃描...");
-                    loadLogs();
+                    
+                    // 強制重新抓取資料
+                    setTimeout(loadLogs, 500); 
                 } else {
-                    alert("儲存失敗，請檢查網路或 RLS 設定");
+                    alert("儲存失敗，請檢查 RLS Policy");
                 }
             }
 
-            // 1.5 秒後恢復掃描，反應更快
-            setTimeout(() => { if(html5QrCode) html5QrCode.resume(); }, 1500);
+            setTimeout(() => { if(html5QrCode) html5QrCode.resume(); }, 2000);
         }
 
-        // --- 4. 功能補丁 ---
+        // --- 4. 顯示與讀取功能 ---
         function updateUI(active, text) {
             document.getElementById('statusDot').className = active ? 'dot active' : 'dot';
             document.getElementById('statusText').innerText = text;
@@ -169,41 +210,52 @@
             p.style.display = p.style.display === 'block' ? 'none' : 'block';
         }
 
+        async function loadLogs() {
+            const tbody = document.getElementById('logBody');
+            
+            // 抓取最新 8 筆資料
+            const { data, error } = await supabaseClient
+                .from('study_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(8);
+
+            if (data) {
+                tbody.innerHTML = data.map(l => {
+                    // 格式化時間到秒
+                    const t = new Date(l.start_time).toLocaleTimeString('zh-TW', { hour12: false });
+                    return `
+                        <tr>
+                            <td>
+                                <span class="log-name">${l.user_name}</span>
+                                <span class="log-sub">${l.subject}</span>
+                            </td>
+                            <td class="log-time">${t}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else if (error) {
+                tbody.innerHTML = `<tr><td colspan="2" style="color:red;">讀取錯誤: ${error.message}</td></tr>`;
+            }
+        }
+
         function generateQR() {
             const name = document.getElementById('userNameInput').value;
             if(!name) return;
             document.getElementById('qr-output').style.display = 'block';
             const canvas = document.getElementById('qrcode-canvas');
             canvas.innerHTML = "";
-            const qr = new QRCode(canvas, { text: name, width: 160, height: 160, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
+            new QRCode(canvas, { text: name, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.H });
             setTimeout(() => {
                 const img = canvas.querySelector('img');
                 document.getElementById('downloadBtn').onclick = () => {
                     const a = document.createElement('a');
-                    a.download = `StudyQR_${name}.png`;
+                    a.download = `QR_${name}.png`;
                     a.href = img.src;
                     a.click();
                 };
             }, 500);
         }
-
-        async function loadLogs() {
-            const { data, error } = await supabaseClient.from('study_logs').select('*').order('created_at', { ascending: false }).limit(5);
-            const tbody = document.getElementById('logBody');
-            if (data && data.length > 0) {
-                tbody.innerHTML = data.map(l => `
-                    <tr>
-                        <td class="log-name">${l.user_name} <small>(${l.subject})</small></td>
-                        <td class="log-time">${new Date(l.start_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-                        <td style="color:#22c55e;">● 已同步</td>
-                    </tr>
-                `).join('');
-            } else {
-                tbody.innerHTML = `<tr><td style="text-align:center; color:#94a3b8;">尚未有紀錄 (檢查 SELECT Policy)</td></tr>`;
-            }
-        }
-
-        window.onload = () => { startCamera(); loadLogs(); };
     </script>
 </body>
 </html>
