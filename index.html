@@ -12,7 +12,6 @@
         :root { --primary: #2563eb; --success: #22c55e; --bg: #f8fafc; --dark-bg: #0f172a; }
         html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); transition: background 0.3s; }
 
-        /* --- 1. 鏡頭區塊優化 (解決黑畫面) --- */
         #reader-wrapper {
             position: fixed; top: 15px; right: 15px; width: 150px; z-index: 2000;
             display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -23,7 +22,6 @@
         }
         #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
-        /* --- 2. 掃描狀態指示燈 --- */
         .scan-status {
             width: 100%; padding: 4px 0; border-radius: 20px;
             background: rgba(37, 99, 235, 0.1); color: var(--primary);
@@ -35,12 +33,10 @@
             box-shadow: 0 0 10px var(--success);
         }
 
-        /* 主容器 */
         .container { height: 100vh; display: flex; flex-direction: column; padding: 20px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
         .top-section { height: 110px; flex-shrink: 0; padding-right: 160px; display: flex; flex-direction: column; justify-content: center; }
         .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; }
 
-        /* 列表區塊 */
         .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; }
         .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -48,7 +44,6 @@
         td { padding: 14px 12px; border-bottom: 1px solid #f8fafc; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ongoing { background: #fffbeb; color: #f59e0b; font-weight: bold; }
 
-        /* --- 3. 獨立 Admin 頁面樣式 (全黑) --- */
         #adminView {
             display: none; position: fixed; inset: 0; background: var(--dark-bg);
             z-index: 4000; overflow-y: auto; color: white; padding: 20px;
@@ -56,8 +51,8 @@
         .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
         .admin-card { background: #1e293b; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #334155; }
         .dark-table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 10px; overflow: hidden; }
-        .dark-table th { background: #334155; color: #94a3b8; }
-        .dark-table td { border-bottom: 1px solid #334155; color: #cbd5e1; }
+        .dark-table th { background: #334155; color: #94a3b8; padding: 10px; }
+        .dark-table td { border-bottom: 1px solid #334155; color: #cbd5e1; padding: 10px; }
 
         .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; opacity: 0.5; }
         #startOverlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
@@ -131,7 +126,7 @@
 
     <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
 
-<script>
+    <script>
         const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
         const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
         const ADMIN_PASSWORD = '8888'; 
@@ -139,7 +134,7 @@
         try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) { console.error("DB 連接失敗"); }
 
         let html5QrCode;
-        let adminSubscription = null; // 用於存放即時監聽器
+        let adminSubscription = null;
 
         function init() {
             document.getElementById('startOverlay').style.display = 'none';
@@ -147,8 +142,10 @@
                 document.getElementById('liveClock').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false });
             }, 1000);
             startScanner();
-            loadMainView(); // 載入主畫面
-            document.getElementById('beep').play().then(() => document.getElementById('beep').pause());
+            loadMainView(); 
+            // 預載入聲音
+            const beep = document.getElementById('beep');
+            beep.play().then(() => beep.pause()).catch(e => console.log("Audio unlock required"));
         }
 
         async function startScanner() {
@@ -158,8 +155,7 @@
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
 
-// --- 核心掃描邏輯 (方案 A: 開始即寫入) ---
-async function onScan(name) {
+        async function onScan(name) {
             const lamp = document.getElementById('statusLamp');
             lamp.innerText = "✨ 讀取成功！";
             lamp.classList.add('success');
@@ -179,6 +175,7 @@ async function onScan(name) {
             const currentSession = (ongoing && ongoing.length > 0) ? ongoing[0] : null;
 
             if (!currentSession) {
+                // 開始讀書流程
                 const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
                 if (sub) {
                     await db.from('study_logs').insert([{
@@ -186,10 +183,10 @@ async function onScan(name) {
                     }]);
                 }
             } else {
+                // 結束讀書流程
                 const diff = Math.floor((new Date() - new Date(currentSession.start_time)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
                 
-                // 這裡執行 UPDATE，請確保 Supabase 有開啟 Update 權限
                 const { error } = await db.from('study_logs')
                     .update({ end_time: now, content: note || "" })
                     .eq('id', currentSession.id);
@@ -197,7 +194,6 @@ async function onScan(name) {
                 if (error) alert("更新失敗：" + error.message);
             }
 
-            // 強制重新抓取資料並刷新介面
             await loadMainView();
 
             setTimeout(() => {
@@ -207,35 +203,21 @@ async function onScan(name) {
             }, 1500);
         }
 
-            loadMainView(); // 更新主畫面列表
-
-            setTimeout(() => {
-                lamp.innerText = "⏳ 掃描中...";
-                lamp.classList.remove('success');
-                if(html5QrCode) html5QrCode.resume();
-            }, 1500);
-        }
-
-        // --- 主畫面邏輯 (自動載入最新) ---
         async function loadMainView() {
             const { data } = await db.from('study_logs')
                 .select('*')
                 .order('created_at', { ascending: false })
                 .limit(10);
-            
             renderMainTable(data || []);
         }
 
-function renderMainTable(data) {
+        function renderMainTable(data) {
             const tbody = document.getElementById('logBody');
             let count = 0;
             
             tbody.innerHTML = data.map(l => {
-                // 判斷是否為「進行中」：end_time 必須不存在或為空字串
                 const isOngoing = !l.end_time;
                 if(isOngoing) count++;
-
-                // 格式化結束時間顯示
                 const endTimeStr = isOngoing 
                     ? '<span style="color:#f59e0b;">● 進行中</span>' 
                     : new Date(l.end_time).toLocaleTimeString('zh-TW', { hour12: false });
@@ -253,11 +235,10 @@ function renderMainTable(data) {
             document.getElementById('activeCount').innerText = count;
         }
 
-        // --- Admin 管理頁面邏輯 (即時監聽模式) ---
         function checkAdmin() {
             if (prompt("請輸入密碼：") === ADMIN_PASSWORD) {
                 document.getElementById('adminView').style.display = 'block';
-                startAdminRealtime(); // 啟動自動更新監聽
+                startAdminRealtime();
             } else {
                 alert("密碼錯誤");
             }
@@ -265,35 +246,26 @@ function renderMainTable(data) {
 
         function closeAdmin() {
             document.getElementById('adminView').style.display = 'none';
-            if (adminSubscription) {
-                db.removeChannel(adminSubscription); // 關閉面板時停止監聽以節省效能
-            }
+            if (adminSubscription) db.removeChannel(adminSubscription);
         }
 
         async function startAdminRealtime() {
-            // 1. 首次進入先讀取全部資料
             refreshAdminData();
-
-            // 2. 建立 Realtime 通道
             if (adminSubscription) db.removeChannel(adminSubscription);
-
             adminSubscription = db.channel('custom-all-channel')
                 .on('postgres_changes', 
                     { event: '*', schema: 'public', table: 'study_logs' }, 
-                    (payload) => {
-                        console.log('偵測到資料庫變動!', payload);
-                        refreshAdminData(); // 當有人開始或結束，自動重新抓取資料
-                    }
+                    (payload) => { refreshAdminData(); }
                 )
                 .subscribe();
         }
 
         async function refreshAdminData() {
             const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false });
-            if (data) renderAdminTable(data);
+            if (data) renderAdminTableAdmin(data);
         }
 
-        function renderAdminTable(data) {
+        function renderAdminTableAdmin(data) {
             const tbody = document.getElementById('adminLogBody');
             tbody.innerHTML = data.map(l => {
                 const isOngoing = !l.end_time;
@@ -321,7 +293,6 @@ function renderMainTable(data) {
             new QRCode(container, { text: n, width: 140, height: 140 });
         }
 
-        // 供手動按鈕使用的刷新函式
         function exportAll() { refreshAdminData(); }
     </script>
 </body>
