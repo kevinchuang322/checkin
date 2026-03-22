@@ -131,15 +131,15 @@
 
     <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
 
-    <script>
+<script>
         const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
         const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
         const ADMIN_PASSWORD = '8888'; 
         let db;
-        try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) {}
+        try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) { console.error("DB 連接失敗"); }
 
-        let activeSessions = {};
         let html5QrCode;
+        let adminSubscription = null; // 用於存放即時監聽器
 
         function init() {
             document.getElementById('startOverlay').style.display = 'none';
@@ -147,7 +147,7 @@
                 document.getElementById('liveClock').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false });
             }, 1000);
             startScanner();
-            loadHistory();
+            loadMainView(); // 載入主畫面
             document.getElementById('beep').play().then(() => document.getElementById('beep').pause());
         }
 
@@ -158,70 +158,88 @@
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
 
+        // --- 核心掃描邏輯 (方案 A: 開始即寫入) ---
         async function onScan(name) {
-            // 2. 顯示綠色成功燈
             const lamp = document.getElementById('statusLamp');
             lamp.innerText = "✨ 讀取成功！";
             lamp.classList.add('success');
             document.getElementById('beep').play();
 
             await html5QrCode.pause(true);
-            const now = new Date();
+            const now = new Date().toISOString();
 
-            if (!activeSessions[name]) {
+            // 檢查該學生是否有尚未結束的紀錄 (end_time 為空)
+            const { data: ongoing } = await db.from('study_logs')
+                .select('*')
+                .eq('user_name', name)
+                .is('end_time', null)
+                .maybeSingle();
+
+            if (!ongoing) {
+                // 開始讀書：Insert 一筆 end_time 為 null 的資料
                 const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
                 if (sub) {
-                    activeSessions[name] = { sub, start: now.toISOString() };
-                    renderUI();
+                    await db.from('study_logs').insert([{
+                        user_name: name,
+                        subject: sub,
+                        start_time: now,
+                        end_time: null
+                    }]);
                 }
             } else {
-                const session = activeSessions[name];
-                const diff = Math.floor((now - new Date(session.start)) / 60000);
+                // 結束讀書：Update 該筆紀錄的 end_time
+                const diff = Math.floor((new Date() - new Date(ongoing.start_time)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
-                await db.from('study_logs').insert([{
-                    user_name: name, subject: session.sub, start_time: session.start, end_time: now.toISOString(), content: note || ""
-                }]);
-                delete activeSessions[name];
-                loadHistory();
+                
+                await db.from('study_logs')
+                    .update({ end_time: now, content: note || "" })
+                    .eq('id', ongoing.id);
             }
 
-            // 2秒後恢復藍色燈
+            loadMainView(); // 更新主畫面列表
+
             setTimeout(() => {
                 lamp.innerText = "⏳ 掃描中...";
                 lamp.classList.remove('success');
                 if(html5QrCode) html5QrCode.resume();
-            }, 2000);
+            }, 1500);
         }
 
-        async function loadHistory() {
-            const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false }).limit(5);
-            window.recentLogs = data;
-            renderUI();
+        // --- 主畫面邏輯 (自動載入最新) ---
+        async function loadMainView() {
+            const { data } = await db.from('study_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(10);
+            
+            renderMainTable(data || []);
         }
 
-        function renderUI() {
+        function renderMainTable(data) {
             const tbody = document.getElementById('logBody');
-            let rows = [];
             let count = 0;
-            for (let name in activeSessions) {
-                count++;
-                const s = activeSessions[name];
-                rows.push(`<tr class="ongoing"><td>${name}</td><td>${s.sub}</td><td>${new Date(s.start).toLocaleTimeString('zh-TW',{hour12:false})}</td><td>進行中</td></tr>`);
-            }
-            if (window.recentLogs) {
-                window.recentLogs.forEach(l => {
-                    rows.push(`<tr><td>${l.user_name}</td><td>${l.subject}</td><td>${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td><td>${new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td></tr>`);
-                });
-            }
-            tbody.innerHTML = rows.slice(0, 5).join('');
+            
+            tbody.innerHTML = data.map(l => {
+                const isOngoing = !l.end_time;
+                if(isOngoing) count++;
+                return `
+                    <tr class="${isOngoing ? 'ongoing' : ''}">
+                        <td>${l.user_name}</td>
+                        <td>${l.subject}</td>
+                        <td>${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td>
+                        <td>${isOngoing ? '<span class="dot"></span>進行中' : new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td>
+                    </tr>
+                `;
+            }).slice(0, 5).join('');
+
             document.getElementById('activeCount').innerText = count;
         }
 
-        // --- 3. 管理頁面邏輯 ---
+        // --- Admin 管理頁面邏輯 (即時監聽模式) ---
         function checkAdmin() {
             if (prompt("請輸入密碼：") === ADMIN_PASSWORD) {
                 document.getElementById('adminView').style.display = 'block';
-                exportAll(); // 進入時自動載入全部資料
+                startAdminRealtime(); // 啟動自動更新監聽
             } else {
                 alert("密碼錯誤");
             }
@@ -229,19 +247,50 @@
 
         function closeAdmin() {
             document.getElementById('adminView').style.display = 'none';
+            if (adminSubscription) {
+                db.removeChannel(adminSubscription); // 關閉面板時停止監聽以節省效能
+            }
         }
 
-        async function exportAll() {
+        async function startAdminRealtime() {
+            // 1. 首次進入先讀取全部資料
+            refreshAdminData();
+
+            // 2. 建立 Realtime 通道
+            if (adminSubscription) db.removeChannel(adminSubscription);
+
+            adminSubscription = db.channel('custom-all-channel')
+                .on('postgres_changes', 
+                    { event: '*', schema: 'public', table: 'study_logs' }, 
+                    (payload) => {
+                        console.log('偵測到資料庫變動!', payload);
+                        refreshAdminData(); // 當有人開始或結束，自動重新抓取資料
+                    }
+                )
+                .subscribe();
+        }
+
+        async function refreshAdminData() {
             const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false });
+            if (data) renderAdminTable(data);
+        }
+
+        function renderAdminTable(data) {
             const tbody = document.getElementById('adminLogBody');
-            tbody.innerHTML = data.map(l => `
-                <tr>
-                    <td>${l.user_name}</td>
-                    <td>${l.subject}</td>
-                    <td style="font-size:11px;">${new Date(l.start_time).toLocaleString()} <br>~ ${new Date(l.end_time).toLocaleString()}</td>
-                    <td style="font-size:12px;">${l.content || '-'}</td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = data.map(l => {
+                const isOngoing = !l.end_time;
+                return `
+                    <tr style="${isOngoing ? 'color:#f59e0b; font-weight:bold;' : ''}">
+                        <td>${l.user_name}</td>
+                        <td>${l.subject}</td>
+                        <td style="font-size:11px;">
+                            ${new Date(l.start_time).toLocaleString('zh-TW')} <br>
+                            ${isOngoing ? '🔥 正在讀書中...' : '~ ' + new Date(l.end_time).toLocaleString('zh-TW')}
+                        </td>
+                        <td style="font-size:12px;">${l.content || (isOngoing ? '-' : '(無心得)')}</td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function genQR() {
@@ -253,6 +302,9 @@
             document.getElementById('qr-name-label').innerText = n;
             new QRCode(container, { text: n, width: 140, height: 140 });
         }
+
+        // 供手動按鈕使用的刷新函式
+        function exportAll() { refreshAdminData(); }
     </script>
 </body>
 </html>
