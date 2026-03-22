@@ -3,91 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Study Pro | 專業版</title>
+    <title>QR Study Pro | 左側鏡頭直覺版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        :root { --primary: #2563eb; --success: #22c55e; --bg: #f8fafc; --dark-bg: #0f172a; }
-        html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); transition: background 0.3s; }
+        :root { --primary: #2563eb; --success: #22c55e; --bg: #f8fafc; --dark-bg: #0f172a; --text-main: #1e293b; }
+        
+        html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text-main); }
 
-        #reader-wrapper {
-            position: fixed; top: 15px; right: 15px; width: 150px; z-index: 2000;
-            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        /* --- 主佈局：雙欄式 --- */
+        .main-wrapper {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
         }
+
+        /* --- 左側：鏡頭固定區 --- */
+        .camera-section {
+            flex: 0 0 40%; /* 佔用 40% 寬度 */
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* 垂直居中 */
+            align-items: center;    /* 水平居中 */
+            border-right: 1px solid #e2e8f0;
+            position: relative;     /* 為了定位箭頭 */
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* 鏡頭容器 */
+        #reader-wrapper {
+            width: 100%;
+            max-width: 300px; /* 限制最大尺寸，避免平板上過大 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
         #reader {
-            width: 150px; height: 150px; border-radius: 20px; overflow: hidden;
-            border: 4px solid white; box-shadow: 0 8px 25px rgba(0,0,0,0.1); background: #000;
+            width: 250px; /* 固定尺寸 */
+            height: 250px;
+            border-radius: 50%; /* 圓形鏡頭，更直覺 */
+            overflow: hidden;
+            border: 6px solid white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: #000;
+            position: relative;
+            z-index: 10;
         }
         #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
+        /* 鏡頭上方的掃描動畫線 */
+        #reader::after {
+            content: "";
+            position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+            background: rgba(37, 99, 235, 0.5);
+            box-shadow: 0 0 10px var(--primary);
+            animation: scanLine 2s infinite;
+            z-index: 11;
+        }
+        @keyframes scanLine { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+
+        /* 掃描狀態指示燈 */
         .scan-status {
-            width: 100%; padding: 4px 0; border-radius: 20px;
-            background: rgba(37, 99, 235, 0.1); color: var(--primary);
-            font-size: 12px; font-weight: bold; text-align: center;
-            border: 1px solid var(--primary); transition: all 0.3s;
+            width: 80%; padding: 6px 0; border-radius: 20px;
+            background: rgba(37, 99, 235, 0.05); color: var(--primary);
+            font-size: 14px; font-weight: bold; text-align: center;
+            border: 1px solid rgba(37, 99, 235, 0.2); transition: all 0.3s;
         }
         .scan-status.success {
             background: var(--success); color: white; border-color: var(--success);
-            box-shadow: 0 0 10px var(--success);
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
         }
 
-        .container { height: 100vh; display: flex; flex-direction: column; padding: 20px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
-        .top-section { height: 110px; flex-shrink: 0; padding-right: 160px; display: flex; flex-direction: column; justify-content: center; }
-        .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; }
+        /* --- 【新增】向左的動態引導箭頭 --- */
+        .camera-section::after {
+            content: "← 在此掃描";
+            position: absolute;
+            right: -120px; /* 浮在鏡頭區塊右側 */
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+            animation: arrowPulse 1.5s infinite;
+            z-index: 5;
+            white-space: nowrap;
+        }
+        /* 箭頭的小三角 */
+        .camera-section::before {
+            content: "";
+            position: absolute;
+            right: -20px; top: 50%;
+            transform: translateY(-50%);
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-right: 10px solid var(--primary); /* 三角形朝左 */
+            z-index: 5;
+            animation: arrowPulse 1.5s infinite;
+        }
 
-        .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; }
-        .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        @keyframes arrowPulse { 
+            0% { opacity: 1; transform: translateY(-50%) translateX(0); } 
+            50% { opacity: 0.5; transform: translateY(-50%) translateX(-10px); } 
+            100% { opacity: 1; transform: translateY(-50%) translateX(0); } 
+        }
+
+        /* --- 右側：資訊與紀錄區 --- */
+        .info-section {
+            flex: 1; /* 佔用剩餘空間 */
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+            box-sizing: border-box;
+            overflow: hidden; /* 內部捲動 */
+        }
+
+        .top-section { height: 100px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; margin-bottom: 20px;}
+        .clock-box { font-family: monospace; font-size: 36px; color: var(--primary); font-weight: bold; letter-spacing: -1px; }
+
+        /* 列表區塊 */
+        .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.03); flex: 1; overflow-y: auto; }
+        
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { padding: 12px; text-align: left; font-size: 13px; color: #64748b; background: #f1f5f9; }
-        td { padding: 14px 12px; border-bottom: 1px solid #f8fafc; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ongoing { background: #fffbeb; color: #f59e0b; font-weight: bold; }
+        th { padding: 15px 12px; text-align: left; font-size: 13px; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; sticky; top: 0; z-index: 1; }
+        td { padding: 16px 12px; border-bottom: 1px solid #f1f5f9; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        tr:last-child td { border-bottom: none; }
 
-        #adminView {
-            display: none; position: fixed; inset: 0; background: var(--dark-bg);
-            z-index: 4000; overflow-y: auto; color: white; padding: 20px;
-        }
+        /* 進行中樣式 */
+        .ongoing { background: #fffbeb; color: #f59e0b; font-weight: 600; }
+        .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block; margin-right: 6px; animation: blink 1.2s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+
+        /* Admin 樣式 (維持原樣) */
+        .admin-trigger { position: fixed; bottom: 15px; right: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; opacity: 0.5; z-index: 100; }
+        #adminView { display: none; position: fixed; inset: 0; background: var(--dark-bg); z-index: 4000; overflow-y: auto; color: white; padding: 30px; }
         .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
         .admin-card { background: #1e293b; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #334155; }
         .dark-table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 10px; overflow: hidden; }
-        .dark-table th { background: #334155; color: #94a3b8; padding: 10px; }
-        .dark-table td { border-bottom: 1px solid #334155; color: #cbd5e1; padding: 10px; }
+        .dark-table th { background: #334155; color: #94a3b8; padding: 12px; }
+        .dark-table td { border-bottom: 1px solid #334155; color: #cbd5e1; padding: 12px; font-size: 14px;}
 
-        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; opacity: 0.5; }
         #startOverlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .btn-primary { background: var(--primary); color: white; padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: white; padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-primary:hover { background: #1d4ed8; }
         .btn-outline { background: none; border: 1px solid #475569; color: #94a3b8; padding: 8px 15px; border-radius: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="startOverlay">
-        <h2 style="margin-bottom:20px;">📚 讀書打卡系統</h2>
-        <button class="btn-primary" onclick="init()">點擊啟動</button>
+        <h1 style="margin-bottom:10px; color:#1e293b;">📚 QR Study Pro</h1>
+        <p style="color:#64748b; margin-bottom:30px;">專業讀書打卡管理系統</p>
+        <button class="btn-primary" onclick="init()">啟動打卡機</button>
     </div>
 
-    <div id="reader-wrapper">
-        <div id="reader"></div>
-        <div id="statusLamp" class="scan-status">⏳ 掃描中...</div>
-    </div>
-
-    <div id="mainView" class="container">
-        <div class="top-section">
-            <div id="liveClock" class="clock-box">00:00:00</div>
-            <p style="margin: 8px 0 0 5px; color: #64748b; font-size: 14px;">目前在場：<span id="activeCount" style="color:var(--primary); font-weight:bold;">0</span> 人</p>
-        </div>
-
-        <div class="log-section">
-            <h3 style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 最近 5 筆紀錄</h3>
-            <div class="table-card">
-                <table>
-                    <thead><tr><th>學生</th><th>科目</th><th>開始</th><th>結束</th></tr></thead>
-                    <tbody id="logBody"></tbody>
-                </table>
+    <div class="main-wrapper">
+        
+        <div class="camera-section">
+            <div id="reader-wrapper">
+                <div id="reader"></div>
+                <div id="statusLamp" class="scan-status">⏳ 掃描中...</div>
             </div>
         </div>
-        <button class="admin-trigger" onclick="checkAdmin()">⚙️ Admin</button>
+
+        <div id="mainView" class="info-section">
+            <div class="top-section">
+                <div id="liveClock" class="clock-box">00:00:00</div>
+                <p style="margin: 8px 0 0 2px; color: #64748b; font-size: 15px;">
+                    目前在場：<span id="activeCount" style="color:var(--primary); font-weight:bold; font-size:18px;">0</span> 人
+                </p>
+            </div>
+
+            <div class="log-section">
+                <h3 style="margin: 0 0 12px 2px; font-size: 17px; color: #475569;">📊 即時動態 (最新 5 筆)</h3>
+                <div class="table-card">
+                    <table>
+                        <colgroup><col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>
+                        <thead><tr><th>學生</th><th>科目</th><th>開始時間</th><th>結束時間</th></tr></thead>
+                        <tbody id="logBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <button class="admin-trigger" onclick="checkAdmin()">⚙️ 後台管理</button>
+        </div>
     </div>
 
     <div id="adminView">
@@ -114,8 +223,9 @@
                     <h4 style="margin:0;">全量歷史紀錄</h4>
                     <button onclick="exportAll()" style="font-size:12px; color:var(--primary); background:none; border:none; cursor:pointer;">[刷新資料]</button>
                 </div>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <div style="max-height: 450px; overflow-y: auto;">
                     <table class="dark-table">
+                        <colgroup><col style="width:20%"><col style="width:20%"><col style="width:35%"><col style="width:25%"></colgroup>
                         <thead><tr><th>學生</th><th>科目</th><th>時間範圍</th><th>心得</th></tr></thead>
                         <tbody id="adminLogBody"></tbody>
                     </table>
@@ -143,14 +253,15 @@
             }, 1000);
             startScanner();
             loadMainView(); 
-            // 預載入聲音
+            // 聲音預載
             const beep = document.getElementById('beep');
-            beep.play().then(() => beep.pause()).catch(e => console.log("Audio unlock required"));
+            beep.play().then(() => beep.pause()).catch(e => {});
         }
 
         async function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 25, qrbox: 130, videoConstraints: { facingMode: "user" } };
+            // 圓形鏡頭 qrbox 設大一點
+            const config = { fps: 25, qrbox: 180, videoConstraints: { facingMode: "user" } };
             html5QrCode.start({ facingMode: "user" }, config, onScan)
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
@@ -164,7 +275,7 @@
             await html5QrCode.pause(true);
             const now = new Date().toISOString();
 
-            // 抓取該學生最新一筆「尚未結束」的紀錄
+            // 檢查是否正在進行中
             const { data: ongoing } = await db.from('study_logs')
                 .select('*')
                 .eq('user_name', name)
@@ -175,7 +286,6 @@
             const currentSession = (ongoing && ongoing.length > 0) ? ongoing[0] : null;
 
             if (!currentSession) {
-                // 開始讀書流程
                 const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
                 if (sub) {
                     await db.from('study_logs').insert([{
@@ -183,7 +293,6 @@
                     }]);
                 }
             } else {
-                // 結束讀書流程
                 const diff = Math.floor((new Date() - new Date(currentSession.start_time)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
                 
@@ -204,11 +313,20 @@
         }
 
         async function loadMainView() {
+            // 抓取最近的資料（包含正在讀書和已結束）
             const { data } = await db.from('study_logs')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .limit(10);
-            renderMainTable(data || []);
+                .limit(10); // 抓多一點來排序
+            
+            // 將「進行中」的排在最前面，其餘按時間降序
+            const sortedData = (data || []).sort((a, b) => {
+                if (!a.end_time && b.end_time) return -1;
+                if (a.end_time && !b.end_time) return 1;
+                return 0; // 維持原排序
+            });
+
+            renderMainTable(sortedData);
         }
 
         function renderMainTable(data) {
@@ -219,18 +337,18 @@
                 const isOngoing = !l.end_time;
                 if(isOngoing) count++;
                 const endTimeStr = isOngoing 
-                    ? '<span style="color:#f59e0b;">● 進行中</span>' 
+                    ? '<span class="dot"></span>進行中' 
                     : new Date(l.end_time).toLocaleTimeString('zh-TW', { hour12: false });
 
                 return `
                     <tr class="${isOngoing ? 'ongoing' : ''}">
                         <td>${l.user_name}</td>
                         <td>${l.subject}</td>
-                        <td>${new Date(l.start_time).toLocaleTimeString('zh-TW', { hour12: false })}</td>
-                        <td>${endTimeStr}</td>
+                        <td style="font-family:monospace;">${new Date(l.start_time).toLocaleTimeString('zh-TW', { hour12: false })}</td>
+                        <td style="font-family:monospace;">${endTimeStr}</td>
                     </tr>
                 `;
-            }).slice(0, 5).join('');
+            }).slice(0, 5).join(''); // 強制只顯示最新 5 筆
 
             document.getElementById('activeCount').innerText = count;
         }
@@ -273,9 +391,9 @@
                     <tr style="${isOngoing ? 'color:#f59e0b; font-weight:bold;' : ''}">
                         <td>${l.user_name}</td>
                         <td>${l.subject}</td>
-                        <td style="font-size:11px;">
-                            ${new Date(l.start_time).toLocaleString('zh-TW')} <br>
-                            ${isOngoing ? '🔥 正在讀書中...' : '~ ' + new Date(l.end_time).toLocaleString('zh-TW')}
+                        <td style="font-size:12px; font-family:monospace;">
+                            ${new Date(l.start_time).toLocaleString('zh-TW', {hour12:false})} <br>
+                            ${isOngoing ? '🔥 正在讀書中...' : '~ ' + new Date(l.end_time).toLocaleString('zh-TW', {hour12:false})}
                         </td>
                         <td style="font-size:12px;">${l.content || (isOngoing ? '-' : '(無心得)')}</td>
                     </tr>
