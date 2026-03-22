@@ -37,7 +37,7 @@
         /* 鏡頭容器 */
         #reader-wrapper {
             width: 100%;
-            max-width: 300px;
+            max-width: 300px; /* 限制最大尺寸，避免平板上過大 */
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -237,8 +237,8 @@
     <audio id="beep" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
 
     <script>
-        const SB_URL = '你的URL';
-        const SB_KEY = '你的KEY';
+        const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
+        const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
         const ADMIN_PASSWORD = '8888'; 
         let db;
         try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) { console.error("DB 連接失敗"); }
