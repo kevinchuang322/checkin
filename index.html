@@ -3,108 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Study Pro | 安全管理版</title>
+    <title>QR Study Pro | 專業版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; --dark: #1e293b; }
-        html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); }
+        :root { --primary: #2563eb; --success: #22c55e; --bg: #f8fafc; --dark-bg: #0f172a; }
+        html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background: var(--bg); transition: background 0.3s; }
 
-        /* 鏡頭鎖定 */
-        #reader {
-            position: fixed; top: 15px; right: 15px;
-            width: 150px; height: 150px;
-            border-radius: 20px; overflow: hidden;
-            border: 4px solid white; box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            z-index: 2000; background: #000;
+        /* --- 1. 鏡頭區塊優化 (解決黑畫面) --- */
+        #reader-wrapper {
+            position: fixed; top: 15px; right: 15px; width: 150px; z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
-        #reader video { object-fit: cover !important; }
+        #reader {
+            width: 150px; height: 150px; border-radius: 20px; overflow: hidden;
+            border: 4px solid white; box-shadow: 0 8px 25px rgba(0,0,0,0.1); background: #000;
+        }
+        #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
+        /* --- 2. 掃描狀態指示燈 --- */
+        .scan-status {
+            width: 100%; padding: 4px 0; border-radius: 20px;
+            background: rgba(37, 99, 235, 0.1); color: var(--primary);
+            font-size: 12px; font-weight: bold; text-align: center;
+            border: 1px solid var(--primary); transition: all 0.3s;
+        }
+        .scan-status.success {
+            background: var(--success); color: white; border-color: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        /* 主容器 */
         .container { height: 100vh; display: flex; flex-direction: column; padding: 20px; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
-        
-        /* 頂部時鐘 */
         .top-section { height: 110px; flex-shrink: 0; padding-right: 160px; display: flex; flex-direction: column; justify-content: center; }
-        .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; background: white; padding: 5px 15px; border-radius: 12px; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .clock-box { font-family: monospace; font-size: 28px; color: var(--primary); font-weight: bold; }
 
-        /* 紀錄表格 */
+        /* 列表區塊 */
         .log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; }
         .table-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         th { padding: 12px; text-align: left; font-size: 13px; color: #64748b; background: #f1f5f9; }
         td { padding: 14px 12px; border-bottom: 1px solid #f8fafc; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
         .ongoing { background: #fffbeb; color: #f59e0b; font-weight: bold; }
-        .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1.2s infinite; }
-        @keyframes blink { 50% { opacity: 0.3; } }
 
-        /* 管理員按鈕與面板 */
-        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; z-index: 3000; }
-        
-        #adminPanel { 
-            display: none; position: fixed; inset: 0; 
-            background: rgba(30, 41, 59, 0.95); color: white; padding: 30px; 
-            z-index: 4000; overflow-y: auto;
+        /* --- 3. 獨立 Admin 頁面樣式 (全黑) --- */
+        #adminView {
+            display: none; position: fixed; inset: 0; background: var(--dark-bg);
+            z-index: 4000; overflow-y: auto; color: white; padding: 20px;
         }
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+        .admin-card { background: #1e293b; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #334155; }
+        .dark-table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 10px; overflow: hidden; }
+        .dark-table th { background: #334155; color: #94a3b8; }
+        .dark-table td { border-bottom: 1px solid #334155; color: #cbd5e1; }
 
+        .admin-trigger { position: fixed; bottom: 15px; left: 15px; background: #94a3b8; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; opacity: 0.5; }
         #startOverlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .btn-primary { background: var(--primary); color: white; padding: 12px 25px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
-        .input-dark { padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #334155; color: white; width: 100%; box-sizing: border-box; }
+        .btn-outline { background: none; border: 1px solid #475569; color: #94a3b8; padding: 8px 15px; border-radius: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="startOverlay">
         <h2 style="margin-bottom:20px;">📚 讀書打卡系統</h2>
-        <button class="btn-primary" onclick="init()">啟動系統</button>
+        <button class="btn-primary" onclick="init()">點擊啟動</button>
     </div>
 
-    <div id="reader"></div>
+    <div id="reader-wrapper">
+        <div id="reader"></div>
+        <div id="statusLamp" class="scan-status">⏳ 掃描中...</div>
+    </div>
 
-    <div class="container">
+    <div id="mainView" class="container">
         <div class="top-section">
             <div id="liveClock" class="clock-box">00:00:00</div>
             <p style="margin: 8px 0 0 5px; color: #64748b; font-size: 14px;">目前在場：<span id="activeCount" style="color:var(--primary); font-weight:bold;">0</span> 人</p>
         </div>
 
         <div class="log-section">
-            <h3 id="tableTitle" style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 即時動態 (最新 5 筆)</h3>
+            <h3 style="margin: 0 0 10px 5px; font-size: 16px; color: #475569;">📊 最近 5 筆紀錄</h3>
             <div class="table-card">
                 <table>
-                    <colgroup><col><col><col><col></colgroup>
                     <thead><tr><th>學生</th><th>科目</th><th>開始</th><th>結束</th></tr></thead>
                     <tbody id="logBody"></tbody>
                 </table>
             </div>
         </div>
+        <button class="admin-trigger" onclick="checkAdmin()">⚙️ Admin</button>
     </div>
 
-    <button class="admin-trigger" onclick="checkAdmin()">⚙️ 管理員工具</button>
+    <div id="adminView">
+        <div class="admin-header">
+            <h2 style="color:white; margin:0;">後台管理系統</h2>
+            <button class="btn-outline" onclick="closeAdmin()">← 返回打卡系統</button>
+        </div>
 
-    <div id="adminPanel">
-        <div style="max-width: 500px; margin: 0 auto;">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin:0;">管理員工具箱</h2>
-                <button onclick="closeAdmin()" style="background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer;">&times;</button>
-            </div>
-
-            <div style="background: #334155; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
-                <label style="display:block; margin-bottom:8px; font-size:14px;">生成學生 QR Code</label>
+        <div style="max-width: 900px; margin: 0 auto;">
+            <div class="admin-card">
+                <h4 style="margin-top:0;">學生卡片生成</h4>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="nameIn" class="input-dark" placeholder="輸入學生姓名">
-                    <button onclick="genQR()" class="btn-primary">生成</button>
+                    <input type="text" id="nameIn" placeholder="輸入學生姓名" style="flex:1; padding:12px; border-radius:8px; border:none; background:#0f172a; color:white;">
+                    <button onclick="genQR()" class="btn-primary">生成 QR</button>
                 </div>
-                <div id="qr-out" style="background:white; padding:15px; margin-top:15px; display:none; border-radius:10px; text-align:center;">
-                    <div id="qrcode-container" style="display:flex; justify-content:center;"></div>
-                    <p id="qr-name-label" style="color:#000; margin-top:5px; font-weight:bold;"></p>
+                <div id="qr-out" style="display:none; margin-top:15px; text-align:center; background:white; padding:15px; border-radius:10px; width:fit-content;">
+                    <div id="qrcode-container"></div>
+                    <p id="qr-name-label" style="color:black; margin:5px 0 0; font-weight:bold;"></p>
                 </div>
             </div>
 
-            <div style="background: #334155; padding: 20px; border-radius: 15px;">
-                <label style="display:block; margin-bottom:15px; font-size:14px;">資料查詢</label>
-                <button onclick="loadHistory(1000)" style="width:100%; padding:12px; background:#475569; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-bottom:10px;">🔓 查看全量完整資料 (不限5筆)</button>
-                <p style="font-size:12px; color:#94a3b8; text-align:center;">※ 點擊後主畫面表格將切換為全量模式</p>
+            <div class="admin-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h4 style="margin:0;">全量歷史紀錄</h4>
+                    <button onclick="exportAll()" style="font-size:12px; color:var(--primary); background:none; border:none; cursor:pointer;">[刷新資料]</button>
+                </div>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="dark-table">
+                        <thead><tr><th>學生</th><th>科目</th><th>時間範圍</th><th>心得</th></tr></thead>
+                        <tbody id="adminLogBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -114,14 +134,12 @@
     <script>
         const SB_URL = 'https://ojrxxaqkcztzkmnzkmyz.supabase.co';
         const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcnh4YXFrY3p0emttbnprbXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTg2OTAsImV4cCI6MjA4OTczNDY5MH0.VMnERUR1JB0jR8de5SgLLJGPVn_NUYpN4S0z3R6wIZ0';
-        const ADMIN_PASSWORD = '8888'; // 這裡設定密碼
-        
+        const ADMIN_PASSWORD = '8888'; 
         let db;
         try { db = supabase.createClient(SB_URL, SB_KEY); } catch (e) {}
 
         let activeSessions = {};
         let html5QrCode;
-        let isFullMode = false; // 是否正在顯示全部資料
 
         function init() {
             document.getElementById('startOverlay').style.display = 'none';
@@ -129,19 +147,24 @@
                 document.getElementById('liveClock').innerText = new Date().toLocaleTimeString('zh-TW', { hour12: false });
             }, 1000);
             startScanner();
-            loadHistory(5);
+            loadHistory();
             document.getElementById('beep').play().then(() => document.getElementById('beep').pause());
         }
 
         async function startScanner() {
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 25, qrbox: 120, videoConstraints: { facingMode: "user" } };
+            const config = { fps: 25, qrbox: 130, videoConstraints: { facingMode: "user" } };
             html5QrCode.start({ facingMode: "user" }, config, onScan)
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
 
         async function onScan(name) {
+            // 2. 顯示綠色成功燈
+            const lamp = document.getElementById('statusLamp');
+            lamp.innerText = "✨ 讀取成功！";
+            lamp.classList.add('success');
             document.getElementById('beep').play();
+
             await html5QrCode.pause(true);
             const now = new Date();
 
@@ -155,73 +178,80 @@
                 const session = activeSessions[name];
                 const diff = Math.floor((now - new Date(session.start)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
-                const { error } = await db.from('study_logs').insert([{
+                await db.from('study_logs').insert([{
                     user_name: name, subject: session.sub, start_time: session.start, end_time: now.toISOString(), content: note || ""
                 }]);
-                if (!error) { 
-                    delete activeSessions[name]; 
-                    loadHistory(isFullMode ? 1000 : 5); 
-                }
+                delete activeSessions[name];
+                loadHistory();
             }
-            setTimeout(() => html5QrCode.resume(), 2000);
+
+            // 2秒後恢復藍色燈
+            setTimeout(() => {
+                lamp.innerText = "⏳ 掃描中...";
+                lamp.classList.remove('success');
+                if(html5QrCode) html5QrCode.resume();
+            }, 2000);
         }
 
-        async function loadHistory(limit = 5) {
-            const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false }).limit(limit);
-            window.currentHistory = data;
-            isFullMode = limit > 5;
-            document.getElementById('tableTitle').innerText = isFullMode ? "📊 完整歷史資料" : "📊 即時動態 (最新 5 筆)";
+        async function loadHistory() {
+            const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false }).limit(5);
+            window.recentLogs = data;
             renderUI();
-            if (isFullMode) closeAdmin();
         }
 
         function renderUI() {
             const tbody = document.getElementById('logBody');
             let rows = [];
             let count = 0;
-
             for (let name in activeSessions) {
                 count++;
                 const s = activeSessions[name];
-                rows.push(`<tr class="ongoing"><td>${name}</td><td>${s.sub}</td><td>${new Date(s.start).toLocaleTimeString('zh-TW',{hour12:false})}</td><td><span class="dot"></span>進行中</td></tr>`);
+                rows.push(`<tr class="ongoing"><td>${name}</td><td>${s.sub}</td><td>${new Date(s.start).toLocaleTimeString('zh-TW',{hour12:false})}</td><td>進行中</td></tr>`);
             }
-
-            if (window.currentHistory) {
-                window.currentHistory.forEach(l => {
-                    rows.push(`<tr><td>${l.user_name}</td><td>${l.subject}</td><td style="color:#94a3b8; font-size:13px;">${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td><td style="color:#94a3b8; font-size:13px;">${new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td></tr>`);
+            if (window.recentLogs) {
+                window.recentLogs.forEach(l => {
+                    rows.push(`<tr><td>${l.user_name}</td><td>${l.subject}</td><td>${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td><td>${new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td></tr>`);
                 });
             }
-
-            // 如果不是全量模式，裁切成 5 筆
-            tbody.innerHTML = (isFullMode ? rows : rows.slice(0, 5)).join('') || "<tr><td colspan='4' style='text-align:center;'>無紀錄</td></tr>";
+            tbody.innerHTML = rows.slice(0, 5).join('');
             document.getElementById('activeCount').innerText = count;
         }
 
-        // --- 安全管理邏輯 ---
+        // --- 3. 管理頁面邏輯 ---
         function checkAdmin() {
-            const pw = prompt("请输入管理員密碼：");
-            if (pw === ADMIN_PASSWORD) {
-                document.getElementById('adminPanel').style.display = 'block';
-            } else if (pw !== null) {
-                alert("密碼錯誤！");
+            if (prompt("請輸入密碼：") === ADMIN_PASSWORD) {
+                document.getElementById('adminView').style.display = 'block';
+                exportAll(); // 進入時自動載入全部資料
+            } else {
+                alert("密碼錯誤");
             }
         }
 
         function closeAdmin() {
-            document.getElementById('adminPanel').style.display = 'none';
+            document.getElementById('adminView').style.display = 'none';
+        }
+
+        async function exportAll() {
+            const { data } = await db.from('study_logs').select('*').order('created_at', { ascending: false });
+            const tbody = document.getElementById('adminLogBody');
+            tbody.innerHTML = data.map(l => `
+                <tr>
+                    <td>${l.user_name}</td>
+                    <td>${l.subject}</td>
+                    <td style="font-size:11px;">${new Date(l.start_time).toLocaleString()} <br>~ ${new Date(l.end_time).toLocaleString()}</td>
+                    <td style="font-size:12px;">${l.content || '-'}</td>
+                </tr>
+            `).join('');
         }
 
         function genQR() {
             const n = document.getElementById('nameIn').value;
             if(!n) return;
-            const out = document.getElementById('qr-out');
+            document.getElementById('qr-out').style.display = 'inline-block';
             const container = document.getElementById('qrcode-container');
-            const label = document.getElementById('qr-name-label');
-            
-            out.style.display = 'inline-block';
             container.innerHTML = "";
-            label.innerText = n;
-            new QRCode(container, { text: n, width: 150, height: 150 });
+            document.getElementById('qr-name-label').innerText = n;
+            new QRCode(container, { text: n, width: 140, height: 140 });
         }
     </script>
 </body>
