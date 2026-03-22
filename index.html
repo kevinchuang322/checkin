@@ -260,30 +260,32 @@ async function onScan(name) {
     const scanValue = name.trim().toLowerCase(); // 標準化掃描內容
 
     // --- 管理員快速通道 ---
+// --- 管理員快速通道 ---
     if (scanValue === "admin") {
         lamp.innerText = "🔑 管理員登入中...";
         lamp.classList.add('success');
         document.getElementById('beep').play();
         
-        await html5QrCode.pause(true);
+        // 【關鍵改動】：停止鏡頭運作，釋放硬體資源
+        if (html5QrCode && html5QrCode.getState() > 1) {
+            await html5QrCode.stop(); 
+        }
         
-        // 核心改動：進入前先刷新所有資料
+        // 進入前先刷新所有資料
         await loadMainView();      // 刷新右側即時動態
         await refreshAdminData();  // 刷新後台管理表格
         
         // 顯示管理介面
         document.getElementById('adminView').style.display = 'block';
-        startAdminRealtime(); // 開啟即時監聽（如果有設定的話）
+        startAdminRealtime(); 
+
+        // 既然已經 stop 了，這裡就不需要 setTimeout 去 resume 鏡頭
+        // 因為鏡頭重啟會交給「返回」按鈕處理
+        lamp.innerText = "⏳ 掃描中...";
+        lamp.classList.remove('success');
         
-        // 3秒後重置掃描狀態燈，方便下次使用
-        setTimeout(() => {
-            lamp.innerText = "⏳ 掃描中...";
-            lamp.classList.remove('success');
-            if(html5QrCode) html5QrCode.resume();
-        }, 3000);
         return; // 中斷，不進入學生打卡流程
     }
-    // -------------------------
 
     // --- 以下為一般學生打卡邏輯 ---
     lamp.innerText = "✨ 讀取成功！";
@@ -370,19 +372,27 @@ async function onScan(name) {
             document.getElementById('activeCount').innerText = count;
         }
 
-        function checkAdmin() {
-            if (prompt("請輸入密碼：") === ADMIN_PASSWORD) {
-                document.getElementById('adminView').style.display = 'block';
-                startAdminRealtime();
-            } else {
-                alert("密碼錯誤");
-            }
+        async function checkAdmin() {
+    if (prompt("請輸入密碼：") === ADMIN_PASSWORD) {
+        // --- 核心改動：進入後台前關閉鏡頭 ---
+        if (html5QrCode && html5QrCode.getState() > 1) {
+            await html5QrCode.stop(); 
         }
+        
+        document.getElementById('adminView').style.display = 'block';
+        startAdminRealtime();
+    } else {
+        alert("密碼錯誤");
+    }
+}
 
-        function closeAdmin() {
-            document.getElementById('adminView').style.display = 'none';
-            if (adminSubscription) db.removeChannel(adminSubscription);
-        }
+async function closeAdmin() {
+    document.getElementById('adminView').style.display = 'none';
+    if (adminSubscription) db.removeChannel(adminSubscription);
+    
+    // --- 核心改動：回到打卡畫面時重新啟動鏡頭 ---
+    startScanner(); 
+}
 
         async function startAdminRealtime() {
             refreshAdminData();
