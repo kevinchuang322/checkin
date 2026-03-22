@@ -22,17 +22,18 @@
 
         /* --- 左側：鏡頭固定區 --- */
         .camera-section {
-            flex: 0 0 40%; /* 佔用 40% 寬度 */
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* 垂直居中 */
-            align-items: center;    /* 水平居中 */
-            border-right: 1px solid #e2e8f0;
-            position: relative;     /* 為了定位箭頭 */
-            padding: 20px;
-            box-sizing: border-box;
-        }
+        flex: 0 0 40%;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center; 
+        border-right: 1px solid #e2e8f0;
+        position: relative;
+        /* --- 新增這行 --- */
+        padding-left: 50px;  /* 數字越大，鏡頭越往右邊移 */
+        box-sizing: border-box; /* 確保 padding 不會撐大整個區塊 */
+}
 
         /* 鏡頭容器 */
         #reader-wrapper {
