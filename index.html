@@ -257,74 +257,77 @@
 
 async function onScan(name) {
     const lamp = document.getElementById('statusLamp');
-    
-    // --- 新增：管理員快速通道 ---
-    if (name.trim().toLowerCase() === "admin") {
+    const scanValue = name.trim().toLowerCase(); // 標準化掃描內容
+
+    // --- 管理員快速通道 ---
+    if (scanValue === "admin") {
         lamp.innerText = "🔑 管理員登入中...";
         lamp.classList.add('success');
         document.getElementById('beep').play();
         
         await html5QrCode.pause(true);
         
-        // 直接顯示管理介面，跳過 prompt 密碼步驟
-        document.getElementById('adminView').style.display = 'block';
-        startAdminRealtime();
+        // 核心改動：進入前先刷新所有資料
+        await loadMainView();      // 刷新右側即時動態
+        await refreshAdminData();  // 刷新後台管理表格
         
-        // 3秒後恢復掃描器，預防管理員關閉後台後無法再次掃描
+        // 顯示管理介面
+        document.getElementById('adminView').style.display = 'block';
+        startAdminRealtime(); // 開啟即時監聽（如果有設定的話）
+        
+        // 3秒後重置掃描狀態燈，方便下次使用
         setTimeout(() => {
             lamp.innerText = "⏳ 掃描中...";
             lamp.classList.remove('success');
             if(html5QrCode) html5QrCode.resume();
         }, 3000);
-        return; // 中斷後續的學生打卡邏輯
+        return; // 中斷，不進入學生打卡流程
     }
     // -------------------------
 
-    // 以下為原本的學生打卡邏輯...
+    // --- 以下為一般學生打卡邏輯 ---
     lamp.innerText = "✨ 讀取成功！";
     lamp.classList.add('success');
     document.getElementById('beep').play();
 
     await html5QrCode.pause(true);
-    // ... (其餘程式碼保持不變)
-            const now = new Date().toISOString();
+    const now = new Date().toISOString();
 
-            // 檢查是否正在進行中
-            const { data: ongoing } = await db.from('study_logs')
-                .select('*')
-                .eq('user_name', name)
-                .is('end_time', null)
-                .order('created_at', { ascending: false })
-                .limit(1);
+    // 檢查是否有進行中的紀錄
+    const { data: ongoing } = await db.from('study_logs')
+        .select('*')
+        .eq('user_name', name)
+        .is('end_time', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-            const currentSession = (ongoing && ongoing.length > 0) ? ongoing[0] : null;
+    const currentSession = (ongoing && ongoing.length > 0) ? ongoing[0] : null;
 
-            if (!currentSession) {
-                const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
-                if (sub) {
-                    await db.from('study_logs').insert([{
-                        user_name: name, subject: sub, start_time: now, end_time: null
-                    }]);
-                }
-            } else {
-                const diff = Math.floor((new Date() - new Date(currentSession.start_time)) / 60000);
-                const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
-                
-                const { error } = await db.from('study_logs')
-                    .update({ end_time: now, content: note || "" })
-                    .eq('id', currentSession.id);
-                
-                if (error) alert("更新失敗：" + error.message);
-            }
-
-            await loadMainView();
-
-            setTimeout(() => {
-                lamp.innerText = "⏳ 掃描中...";
-                lamp.classList.remove('success');
-                if(html5QrCode) html5QrCode.resume();
-            }, 1500);
+    if (!currentSession) {
+        const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
+        if (sub) {
+            await db.from('study_logs').insert([{
+                user_name: name, subject: sub, start_time: now, end_time: null
+            }]);
         }
+    } else {
+        const diff = Math.floor((new Date() - new Date(currentSession.start_time)) / 60000);
+        const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
+        
+        await db.from('study_logs')
+            .update({ end_time: now, content: note || "" })
+            .eq('id', currentSession.id);
+    }
+
+    // 打卡完畢後也刷新畫面
+    await loadMainView();
+
+    setTimeout(() => {
+        lamp.innerText = "⏳ 掃描中...";
+        lamp.classList.remove('success');
+        if(html5QrCode) html5QrCode.resume();
+    }, 1500);
+}
 
         async function loadMainView() {
             // 抓取最近的資料（包含正在讀書和已結束）
