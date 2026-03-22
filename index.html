@@ -159,7 +159,7 @@
         }
 
 // --- 核心掃描邏輯 (方案 A: 開始即寫入) ---
-        async function onScan(name) {
+async function onScan(name) {
             const lamp = document.getElementById('statusLamp');
             lamp.innerText = "✨ 讀取成功！";
             lamp.classList.add('success');
@@ -168,38 +168,44 @@
             await html5QrCode.pause(true);
             const now = new Date().toISOString();
 
-            // --- 修正重點：增加 order 排序，確保抓到「最後一次」開始的紀錄 ---
-            const { data: ongoing, error } = await db.from('study_logs')
+            // 抓取該學生最新一筆「尚未結束」的紀錄
+            const { data: ongoing } = await db.from('study_logs')
                 .select('*')
                 .eq('user_name', name)
                 .is('end_time', null)
-                .order('created_at', { ascending: false }) 
-                .limit(1); // 只取一筆最保險
+                .order('created_at', { ascending: false })
+                .limit(1);
 
-            // 判斷：如果沒有正在進行的紀錄，就開始；如果有，就結束。
-            const currentSession = ongoing && ongoing.length > 0 ? ongoing[0] : null;
+            const currentSession = (ongoing && ongoing.length > 0) ? ongoing[0] : null;
 
             if (!currentSession) {
-                // --- 開始讀書流程 ---
                 const sub = prompt(`👋 ${name}，請輸入科目：`, "自主學習");
                 if (sub) {
                     await db.from('study_logs').insert([{
-                        user_name: name,
-                        subject: sub,
-                        start_time: now,
-                        end_time: null
+                        user_name: name, subject: sub, start_time: now, end_time: null
                     }]);
                 }
             } else {
-                // --- 結束讀書流程 ---
                 const diff = Math.floor((new Date() - new Date(currentSession.start_time)) / 60000);
                 const note = prompt(`✅ ${name} 結束讀書 (${diff}分鐘)，心得：`, "");
                 
-                // 使用唯一 ID 更新，絕對不會錯
-                await db.from('study_logs')
+                // 這裡執行 UPDATE，請確保 Supabase 有開啟 Update 權限
+                const { error } = await db.from('study_logs')
                     .update({ end_time: now, content: note || "" })
                     .eq('id', currentSession.id);
+                
+                if (error) alert("更新失敗：" + error.message);
             }
+
+            // 強制重新抓取資料並刷新介面
+            await loadMainView();
+
+            setTimeout(() => {
+                lamp.innerText = "⏳ 掃描中...";
+                lamp.classList.remove('success');
+                if(html5QrCode) html5QrCode.resume();
+            }, 1500);
+        }
 
             loadMainView(); // 更新主畫面列表
 
@@ -220,19 +226,26 @@
             renderMainTable(data || []);
         }
 
-        function renderMainTable(data) {
+function renderMainTable(data) {
             const tbody = document.getElementById('logBody');
             let count = 0;
             
             tbody.innerHTML = data.map(l => {
+                // 判斷是否為「進行中」：end_time 必須不存在或為空字串
                 const isOngoing = !l.end_time;
                 if(isOngoing) count++;
+
+                // 格式化結束時間顯示
+                const endTimeStr = isOngoing 
+                    ? '<span style="color:#f59e0b;">● 進行中</span>' 
+                    : new Date(l.end_time).toLocaleTimeString('zh-TW', { hour12: false });
+
                 return `
                     <tr class="${isOngoing ? 'ongoing' : ''}">
                         <td>${l.user_name}</td>
                         <td>${l.subject}</td>
-                        <td>${new Date(l.start_time).toLocaleTimeString('zh-TW',{hour12:false})}</td>
-                        <td>${isOngoing ? '<span class="dot"></span>進行中' : new Date(l.end_time).toLocaleTimeString('zh-TW',{hour12:false})}</td>
+                        <td>${new Date(l.start_time).toLocaleTimeString('zh-TW', { hour12: false })}</td>
+                        <td>${endTimeStr}</td>
                     </tr>
                 `;
             }).slice(0, 5).join('');
