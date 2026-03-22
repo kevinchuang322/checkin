@@ -255,13 +255,38 @@
             .catch(() => html5QrCode.start({ facingMode: "environment" }, config, onScan));
         }
 
-        async function onScan(name) {
-            const lamp = document.getElementById('statusLamp');
-            lamp.innerText = "✨ 讀取成功！";
-            lamp.classList.add('success');
-            document.getElementById('beep').play();
+async function onScan(name) {
+    const lamp = document.getElementById('statusLamp');
+    
+    // --- 新增：管理員快速通道 ---
+    if (name.trim().toLowerCase() === "admin") {
+        lamp.innerText = "🔑 管理員登入中...";
+        lamp.classList.add('success');
+        document.getElementById('beep').play();
+        
+        await html5QrCode.pause(true);
+        
+        // 直接顯示管理介面，跳過 prompt 密碼步驟
+        document.getElementById('adminView').style.display = 'block';
+        startAdminRealtime();
+        
+        // 3秒後恢復掃描器，預防管理員關閉後台後無法再次掃描
+        setTimeout(() => {
+            lamp.innerText = "⏳ 掃描中...";
+            lamp.classList.remove('success');
+            if(html5QrCode) html5QrCode.resume();
+        }, 3000);
+        return; // 中斷後續的學生打卡邏輯
+    }
+    // -------------------------
 
-            await html5QrCode.pause(true);
+    // 以下為原本的學生打卡邏輯...
+    lamp.innerText = "✨ 讀取成功！";
+    lamp.classList.add('success');
+    document.getElementById('beep').play();
+
+    await html5QrCode.pause(true);
+    // ... (其餘程式碼保持不變)
             const now = new Date().toISOString();
 
             // 檢查是否正在進行中
